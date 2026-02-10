@@ -50,7 +50,6 @@ namespace Lab4 {
 	private: int currentId = 0;
 
 	private:
-		// Впишіть свій пароль тут!
 		String^ connString = "Server=localhost;Database=alko;Uid=root;Pwd=1234;";
 
 		void LoadData(String^ filter) {
@@ -176,8 +175,6 @@ namespace Lab4 {
 			this->dataGridView1->Location = System::Drawing::Point(300, 50);
 			this->dataGridView1->Size = System::Drawing::Size(480, 400);
 
-			// === ВИПРАВЛЕНО ТУТ ===
-			// Використовуємо CellClick та правильний тип DataGridViewCellEventHandler
 			this->dataGridView1->CellClick += gcnew System::Windows::Forms::DataGridViewCellEventHandler(this, &MyForm::dataGridView1_CellClick);
 
 			// Пошук
@@ -248,3 +245,4 @@ namespace Lab4 {
 		}
 	};
 }
+
