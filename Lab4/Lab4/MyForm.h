@@ -21,13 +21,9 @@ namespace Lab4 {
 	protected:
 		~MyForm()
 		{
-			if (components)
-			{
-				delete components;
-			}
+			if (components) delete components;
 		}
 
-		// Оголошуємо елементи
 	private: System::Windows::Forms::DataGridView^ dataGridView1;
 	private: System::Windows::Forms::TextBox^ txtType;
 	private: System::Windows::Forms::TextBox^ txtBrand;
@@ -35,91 +31,120 @@ namespace Lab4 {
 	private: System::Windows::Forms::TextBox^ txtSupp;
 	private: System::Windows::Forms::DateTimePicker^ dtpDate;
 	private: System::Windows::Forms::NumericUpDown^ numPrice;
+
 	private: System::Windows::Forms::Button^ btnAdd;
 	private: System::Windows::Forms::Button^ btnReload;
+	private: System::Windows::Forms::Button^ btnEdit;
+	private: System::Windows::Forms::Button^ btnSearch;
+	private: System::Windows::Forms::TextBox^ txtSearch;
+
 	private: System::Windows::Forms::Label^ lblType;
 	private: System::Windows::Forms::Label^ lblBrand;
 	private: System::Windows::Forms::Label^ lblManuf;
 	private: System::Windows::Forms::Label^ lblSupp;
 	private: System::Windows::Forms::Label^ lblDate;
 	private: System::Windows::Forms::Label^ lblPrice;
+	private: System::Windows::Forms::Label^ lblSearch;
 
 	private: System::ComponentModel::Container^ components;
+	private: int currentId = 0;
 
 	private:
-		// --- ВАШІ НАЛАШТУВАННЯ БД ---
-		// Впишіть свій пароль тут!
+		// Р’РїРёС€С–С‚СЊ СЃРІС–Р№ РїР°СЂРѕР»СЊ С‚СѓС‚!
 		String^ connString = "Server=localhost;Database=alko;Uid=root;Pwd=1234;";
 
-		// Завантаження даних
-		void LoadData() {
+		void LoadData(String^ filter) {
 			MySqlConnection^ conn = gcnew MySqlConnection(connString);
 			try {
 				conn->Open();
-				MySqlDataAdapter^ da = gcnew MySqlDataAdapter("SELECT * FROM alkos", conn);
+				String^ query = "SELECT * FROM alkos";
+				if (filter != "") {
+					query += " WHERE Type LIKE '%" + filter + "%' OR Brand LIKE '%" + filter + "%'";
+				}
+				MySqlDataAdapter^ da = gcnew MySqlDataAdapter(query, conn);
 				DataTable^ dt = gcnew DataTable();
 				da->Fill(dt);
 				dataGridView1->DataSource = dt;
 			}
 			catch (Exception^ ex) {
-				MessageBox::Show("Помилка БД: " + ex->Message);
+				MessageBox::Show("РџРѕРјРёР»РєР°: " + ex->Message);
 			}
-			finally {
-				conn->Close();
-			}
+			finally { conn->Close(); }
 		}
 
-		// Клік по кнопці "Оновити"
 		System::Void btnReload_Click(System::Object^ sender, System::EventArgs^ e) {
-			LoadData();
+			txtSearch->Text = "";
+			LoadData("");
+			ClearFields();
 		}
 
-		// Клік по кнопці "Додати"
-		System::Void btnAdd_Click(System::Object^ sender, System::EventArgs^ e) {
-			String^ type = txtType->Text;
-			String^ brand = txtBrand->Text;
-			String^ manuf = txtManuf->Text;
-			String^ supp = txtSupp->Text;
-			String^ date = dtpDate->Value.ToString("yyyy-MM-dd");
-			Decimal price = numPrice->Value;
+		System::Void btnSearch_Click(System::Object^ sender, System::EventArgs^ e) {
+			LoadData(txtSearch->Text);
+		}
 
-			if (type == "" || brand == "") {
-				MessageBox::Show("Заповніть Вид та Марку!");
+		System::Void btnAdd_Click(System::Object^ sender, System::EventArgs^ e) {
+			ExecuteQuery("INSERT INTO alkos (Type, Brand, Manufacturer, Supplier, ExpirationDate, Price) VALUES (@t, @b, @m, @s, @d, @p)");
+		}
+
+		System::Void btnEdit_Click(System::Object^ sender, System::EventArgs^ e) {
+			if (currentId == 0) {
+				MessageBox::Show("Р’РёР±РµСЂС–С‚СЊ СЂСЏРґРѕРє РґР»СЏ СЂРµРґР°РіСѓРІР°РЅРЅСЏ!");
 				return;
 			}
+			ExecuteQuery("UPDATE alkos SET Type=@t, Brand=@b, Manufacturer=@m, Supplier=@s, ExpirationDate=@d, Price=@p WHERE id=" + currentId);
+		}
 
+		void ExecuteQuery(String^ sql) {
+			if (txtType->Text == "" || txtBrand->Text == "") {
+				MessageBox::Show("Р—Р°РїРѕРІРЅС–С‚СЊ РѕР±РѕРІ'СЏР·РєРѕРІС– РїРѕР»СЏ!");
+				return;
+			}
 			MySqlConnection^ conn = gcnew MySqlConnection(connString);
 			try {
 				conn->Open();
-				String^ sql = "INSERT INTO alkos (Type, Brand, Manufacturer, Supplier, ExpirationDate, Price) VALUES (@t, @b, @m, @s, @d, @p)";
 				MySqlCommand^ cmd = gcnew MySqlCommand(sql, conn);
-
-				cmd->Parameters->AddWithValue("@t", type);
-				cmd->Parameters->AddWithValue("@b", brand);
-				cmd->Parameters->AddWithValue("@m", manuf);
-				cmd->Parameters->AddWithValue("@s", supp);
-				cmd->Parameters->AddWithValue("@d", date);
-				cmd->Parameters->AddWithValue("@p", price);
-
+				cmd->Parameters->AddWithValue("@t", txtType->Text);
+				cmd->Parameters->AddWithValue("@b", txtBrand->Text);
+				cmd->Parameters->AddWithValue("@m", txtManuf->Text);
+				cmd->Parameters->AddWithValue("@s", txtSupp->Text);
+				cmd->Parameters->AddWithValue("@d", dtpDate->Value.ToString("yyyy-MM-dd"));
+				cmd->Parameters->AddWithValue("@p", numPrice->Value);
 				cmd->ExecuteNonQuery();
-				MessageBox::Show("Додано!");
-				txtType->Text = ""; txtBrand->Text = "";
-				LoadData();
+				MessageBox::Show("Р“РѕС‚РѕРІРѕ!");
+				ClearFields();
+				LoadData("");
 			}
 			catch (Exception^ ex) {
-				MessageBox::Show("Помилка: " + ex->Message);
+				MessageBox::Show("РџРѕРјРёР»РєР°: " + ex->Message);
 			}
-			finally {
-				conn->Close();
+			finally { conn->Close(); }
+		}
+
+		System::Void dataGridView1_CellClick(System::Object^ sender, System::Windows::Forms::DataGridViewCellEventArgs^ e) {
+			if (e->RowIndex >= 0) {
+				DataGridViewRow^ row = dataGridView1->Rows[e->RowIndex];
+
+				// L"id" РѕР·РЅР°С‡Р°С”, С‰Рѕ С†Рµ СЂСЏРґРѕРє С‚РёРїСѓ String^, Р° РЅРµ char*
+				currentId = Convert::ToInt32(row->Cells[L"id"]->Value);
+				txtType->Text = row->Cells[L"Type"]->Value->ToString();
+				txtBrand->Text = row->Cells[L"Brand"]->Value->ToString();
+				txtManuf->Text = row->Cells[L"Manufacturer"]->Value->ToString();
+				txtSupp->Text = row->Cells[L"Supplier"]->Value->ToString();
+				try { dtpDate->Value = Convert::ToDateTime(row->Cells[L"ExpirationDate"]->Value); }
+				catch (...) {}
+				numPrice->Value = Convert::ToDecimal(row->Cells[L"Price"]->Value);
 			}
 		}
 
-		// При запуску
+		void ClearFields() {
+			txtType->Text = ""; txtBrand->Text = ""; txtManuf->Text = ""; txtSupp->Text = "";
+			currentId = 0;
+		}
+
 		System::Void MyForm_Load(System::Object^ sender, System::EventArgs^ e) {
-			LoadData();
+			LoadData("");
 		}
 
-		// --- НАЛАШТУВАННЯ ДИЗАЙНУ ---
 		void InitializeComponent(void)
 		{
 			this->dataGridView1 = (gcnew System::Windows::Forms::DataGridView());
@@ -127,106 +152,95 @@ namespace Lab4 {
 			this->txtBrand = (gcnew System::Windows::Forms::TextBox());
 			this->txtManuf = (gcnew System::Windows::Forms::TextBox());
 			this->txtSupp = (gcnew System::Windows::Forms::TextBox());
+			this->txtSearch = (gcnew System::Windows::Forms::TextBox());
 			this->dtpDate = (gcnew System::Windows::Forms::DateTimePicker());
 			this->numPrice = (gcnew System::Windows::Forms::NumericUpDown());
 			this->btnAdd = (gcnew System::Windows::Forms::Button());
 			this->btnReload = (gcnew System::Windows::Forms::Button());
+			this->btnEdit = (gcnew System::Windows::Forms::Button());
+			this->btnSearch = (gcnew System::Windows::Forms::Button());
 			this->lblType = (gcnew System::Windows::Forms::Label());
 			this->lblBrand = (gcnew System::Windows::Forms::Label());
 			this->lblManuf = (gcnew System::Windows::Forms::Label());
 			this->lblSupp = (gcnew System::Windows::Forms::Label());
 			this->lblDate = (gcnew System::Windows::Forms::Label());
 			this->lblPrice = (gcnew System::Windows::Forms::Label());
+			this->lblSearch = (gcnew System::Windows::Forms::Label());
 
-			// ВИПРАВЛЕНО ТУТ: Додано символ ^ після ISupportInitialize
 			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->dataGridView1))->BeginInit();
 			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->numPrice))->BeginInit();
 			this->SuspendLayout();
 
-			// 
-			// dataGridView1
-			// 
+			// РўР°Р±Р»РёС†СЏ
 			this->dataGridView1->ColumnHeadersHeightSizeMode = System::Windows::Forms::DataGridViewColumnHeadersHeightSizeMode::AutoSize;
-			this->dataGridView1->Location = System::Drawing::Point(300, 12);
-			this->dataGridView1->Name = L"dataGridView1";
+			this->dataGridView1->Location = System::Drawing::Point(300, 50);
 			this->dataGridView1->Size = System::Drawing::Size(480, 400);
-			this->dataGridView1->TabIndex = 0;
 
-			// 
-			// Поля та Лейбли
-			// 
-			this->lblType->Text = L"Вид:";
-			this->lblType->Location = System::Drawing::Point(12, 15);
-			this->txtType->Location = System::Drawing::Point(100, 12);
-			this->txtType->Size = System::Drawing::Size(180, 20);
+			// === Р’РРџР РђР’Р›Р•РќРћ РўРЈРў ===
+			// Р’РёРєРѕСЂРёСЃС‚РѕРІСѓС”РјРѕ CellClick С‚Р° РїСЂР°РІРёР»СЊРЅРёР№ С‚РёРї DataGridViewCellEventHandler
+			this->dataGridView1->CellClick += gcnew System::Windows::Forms::DataGridViewCellEventHandler(this, &MyForm::dataGridView1_CellClick);
 
-			this->lblBrand->Text = L"Марка:";
-			this->lblBrand->Location = System::Drawing::Point(12, 45);
-			this->txtBrand->Location = System::Drawing::Point(100, 42);
-			this->txtBrand->Size = System::Drawing::Size(180, 20);
+			// РџРѕС€СѓРє
+			this->lblSearch->Text = L"РџРѕС€СѓРє:";
+			this->lblSearch->Location = System::Drawing::Point(300, 15);
+			this->lblSearch->Size = System::Drawing::Size(50, 20);
+			this->txtSearch->Location = System::Drawing::Point(360, 12);
+			this->txtSearch->Size = System::Drawing::Size(260, 20);
+			this->btnSearch->Text = L"Р—РЅР°Р№С‚Рё";
+			this->btnSearch->Location = System::Drawing::Point(630, 10);
+			this->btnSearch->Size = System::Drawing::Size(100, 25);
+			this->btnSearch->Click += gcnew System::EventHandler(this, &MyForm::btnSearch_Click);
 
-			this->lblManuf->Text = L"Виробник:";
-			this->lblManuf->Location = System::Drawing::Point(12, 75);
-			this->txtManuf->Location = System::Drawing::Point(100, 72);
-			this->txtManuf->Size = System::Drawing::Size(180, 20);
+			// РџРѕР»СЏ
+			this->lblType->Text = L"Р’РёРґ:"; this->lblType->Location = System::Drawing::Point(12, 15);
+			this->txtType->Location = System::Drawing::Point(100, 12); this->txtType->Size = System::Drawing::Size(180, 20);
 
-			this->lblSupp->Text = L"Постачал.:";
-			this->lblSupp->Location = System::Drawing::Point(12, 105);
-			this->txtSupp->Location = System::Drawing::Point(100, 102);
-			this->txtSupp->Size = System::Drawing::Size(180, 20);
+			this->lblBrand->Text = L"РњР°СЂРєР°:"; this->lblBrand->Location = System::Drawing::Point(12, 45);
+			this->txtBrand->Location = System::Drawing::Point(100, 42); this->txtBrand->Size = System::Drawing::Size(180, 20);
 
-			this->lblDate->Text = L"Придатний до:";
-			this->lblDate->Location = System::Drawing::Point(12, 135);
-			this->dtpDate->Location = System::Drawing::Point(100, 132);
-			this->dtpDate->Size = System::Drawing::Size(180, 20);
+			this->lblManuf->Text = L"Р’РёСЂРѕР±РЅРёРє:"; this->lblManuf->Location = System::Drawing::Point(12, 75);
+			this->txtManuf->Location = System::Drawing::Point(100, 72); this->txtManuf->Size = System::Drawing::Size(180, 20);
 
-			this->lblPrice->Text = L"Ціна:";
-			this->lblPrice->Location = System::Drawing::Point(12, 165);
-			this->numPrice->Location = System::Drawing::Point(100, 162);
-			this->numPrice->Size = System::Drawing::Size(180, 20);
+			this->lblSupp->Text = L"РџРѕСЃС‚Р°С‡Р°Р».:"; this->lblSupp->Location = System::Drawing::Point(12, 105);
+			this->txtSupp->Location = System::Drawing::Point(100, 102); this->txtSupp->Size = System::Drawing::Size(180, 20);
+
+			this->lblDate->Text = L"Р”Р°С‚Р°:"; this->lblDate->Location = System::Drawing::Point(12, 135);
+			this->dtpDate->Location = System::Drawing::Point(100, 132); this->dtpDate->Size = System::Drawing::Size(180, 20);
+
+			this->lblPrice->Text = L"Р¦С–РЅР°:"; this->lblPrice->Location = System::Drawing::Point(12, 165);
+			this->numPrice->Location = System::Drawing::Point(100, 162); this->numPrice->Size = System::Drawing::Size(180, 20);
 			this->numPrice->Maximum = System::Decimal(gcnew cli::array< System::Int32 >(4) { 100000, 0, 0, 0 });
 
-			// 
-			// Кнопки
-			// 
-			this->btnAdd->Text = L"Додати запис";
+			// РљРЅРѕРїРєРё
+			this->btnAdd->Text = L"Р”РѕРґР°С‚Рё";
 			this->btnAdd->Location = System::Drawing::Point(12, 200);
-			this->btnAdd->Size = System::Drawing::Size(270, 40);
-			this->btnAdd->UseVisualStyleBackColor = true;
+			this->btnAdd->Size = System::Drawing::Size(270, 35);
 			this->btnAdd->Click += gcnew System::EventHandler(this, &MyForm::btnAdd_Click);
 
-			this->btnReload->Text = L"Оновити таблицю";
-			this->btnReload->Location = System::Drawing::Point(12, 250);
-			this->btnReload->Size = System::Drawing::Size(270, 40);
-			this->btnReload->UseVisualStyleBackColor = true;
+			this->btnEdit->Text = L"Р—Р±РµСЂРµРіС‚Рё Р·РјС–РЅРё";
+			this->btnEdit->Location = System::Drawing::Point(12, 245);
+			this->btnEdit->Size = System::Drawing::Size(270, 35);
+			this->btnEdit->Click += gcnew System::EventHandler(this, &MyForm::btnEdit_Click);
+
+			this->btnReload->Text = L"РЎРєРёРЅСѓС‚Рё / РћРЅРѕРІРёС‚Рё";
+			this->btnReload->Location = System::Drawing::Point(12, 290);
+			this->btnReload->Size = System::Drawing::Size(270, 35);
 			this->btnReload->Click += gcnew System::EventHandler(this, &MyForm::btnReload_Click);
 
-			// 
-			// MyForm
-			// 
-			this->AutoScaleDimensions = System::Drawing::SizeF(6, 13);
-			this->AutoScaleMode = System::Windows::Forms::AutoScaleMode::Font;
-			this->ClientSize = System::Drawing::Size(800, 450);
-			this->Controls->Add(this->btnReload);
-			this->Controls->Add(this->btnAdd);
-			this->Controls->Add(this->numPrice);
-			this->Controls->Add(this->dtpDate);
-			this->Controls->Add(this->txtSupp);
-			this->Controls->Add(this->txtManuf);
-			this->Controls->Add(this->txtBrand);
-			this->Controls->Add(this->txtType);
+			this->ClientSize = System::Drawing::Size(800, 480);
+			this->Controls->Add(this->btnSearch); this->Controls->Add(this->txtSearch); this->Controls->Add(this->lblSearch);
+			this->Controls->Add(this->btnEdit); this->Controls->Add(this->btnReload); this->Controls->Add(this->btnAdd);
+			this->Controls->Add(this->numPrice); this->Controls->Add(this->dtpDate);
+			this->Controls->Add(this->txtSupp); this->Controls->Add(this->txtManuf);
+			this->Controls->Add(this->txtBrand); this->Controls->Add(this->txtType);
 			this->Controls->Add(this->dataGridView1);
-			this->Controls->Add(this->lblType);
-			this->Controls->Add(this->lblBrand);
-			this->Controls->Add(this->lblManuf);
-			this->Controls->Add(this->lblSupp);
-			this->Controls->Add(this->lblDate);
-			this->Controls->Add(this->lblPrice);
-			this->Name = L"MyForm";
-			this->Text = L"Лабораторна 4 - Облік Напоїв";
+			this->Controls->Add(this->lblType); this->Controls->Add(this->lblBrand);
+			this->Controls->Add(this->lblManuf); this->Controls->Add(this->lblSupp);
+			this->Controls->Add(this->lblDate); this->Controls->Add(this->lblPrice);
+
+			this->Text = L"Р›Р°Р±РѕСЂР°С‚РѕСЂРЅР° 4";
 			this->Load += gcnew System::EventHandler(this, &MyForm::MyForm_Load);
 
-			// І ТУТ ТАКОЖ ВИПРАВЛЕНО (Додано ^)
 			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->dataGridView1))->EndInit();
 			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->numPrice))->EndInit();
 			this->ResumeLayout(false);
