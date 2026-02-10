@@ -1,53 +1,65 @@
-﻿#include <iostream>
+#include <iostream>
 #include <thread>
 #include <vector>
 #include <chrono>
 #include <string>
+#include <mutex>
 
+// Для Windows (керування курсором)
 #ifdef _WIN32
 #include <windows.h>
 #endif
 
 using namespace std;
 
+// --- КОНСТАНТИ ---
 const int WIDTH = 60;
 const int HEIGHT = 20;
 const int SPEED = 1;
 const int DELAY_MS = 100;
 
+//  Глобальний м'ютекс для синхронізації доступу до даних
+mutex dataMutex;
+
 class Fish {
 public:
-    char symbol;    
-    int x, y;       
-    int directionX; 
-    int directionY; 
+    char symbol;
+    int x, y;
+    int directionX;
+    int directionY;
 
     Fish(char symbol, int x, int y, int dx, int dy)
         : symbol(symbol), x(x), y(y), directionX(dx), directionY(dy) {
     }
 
-    // Рух по осі X (для Золотих рибок)
+    // Рух по осі X (Золоті рибки)
     void moveX() {
         while (true) {
-            x += directionX * SPEED;
+            {
+                lock_guard<mutex> lock(dataMutex); // Автоматичне блокування
+                x += directionX * SPEED;
 
-            // розворот
-            if (x >= WIDTH - 2 || x <= 1) {
-                directionX *= -1;
-            }
+                // Перевірка меж (відбивання)
+                if (x >= WIDTH - 2 || x <= 1) {
+                    directionX *= -1;
+                }
+            } // Тут lock знищується і м'ютекс автоматично розблоковується
 
             this_thread::sleep_for(chrono::milliseconds(DELAY_MS));
         }
     }
 
-    // Рух по осі Y (для Гуппі)
+    // Рух по осі Y (Гуппі)
     void moveY() {
         while (true) {
-            y += directionY * SPEED;
+            {
+                lock_guard<mutex> lock(dataMutex);
+                y += directionY * SPEED;
 
-            //розворот
-            if (y >= HEIGHT - 2 || y <= 1) {
-                directionY *= -1;
+                // Перевірка меж
+                if (y >= HEIGHT - 2 || y <= 1) {
+                    directionY *= -1;
+                }
             }
 
             this_thread::sleep_for(chrono::milliseconds(DELAY_MS));
@@ -55,7 +67,6 @@ public:
     }
 };
 
-// Функція, щоб прибрати миготливий курсор
 void hideCursor() {
 #ifdef _WIN32
     HANDLE consoleHandle = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -66,11 +77,10 @@ void hideCursor() {
 #endif
 }
 
-// Функція малювання поверх старого тексту (щоб не миготіло)
 void setCursorPosition(int x, int y) {
 #ifdef _WIN32
     HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
-    std::cout.flush();
+    cout.flush();
     COORD coord = { (SHORT)x, (SHORT)y };
     SetConsoleCursorPosition(hOut, coord);
 #endif
@@ -79,30 +89,24 @@ void setCursorPosition(int x, int y) {
 int main() {
     hideCursor();
 
-    // Створюємо рибок на фіксованих місцях
-    // 'G' - Goldfish (рухаються вліво-вправо)
-    static Fish gold1('G', 5, 5, 1, 0);           // Ряд 5
-    static Fish gold2('G', WIDTH - 5, 15, -1, 0); // Ряд 15
+    static Fish gold1('G', 5, 5, 1, 0);
+    static Fish gold2('G', WIDTH - 5, 15, -1, 0);
+    static Fish guppy1('y', 20, 2, 0, 1);
+    static Fish guppy2('y', 40, HEIGHT - 2, 0, -1);
 
-    // 'y' - Guppy (рухаються вгору-вниз)
-    static Fish guppy1('y', 20, 2, 0, 1);         // Стовпчик 20
-    static Fish guppy2('y', 40, HEIGHT - 2, 0, -1); // Стовпчик 40
-
-    // Запускаємо потоки
     vector<thread> threads;
+    // Запуск потоків
     threads.emplace_back(&Fish::moveX, &gold1);
     threads.emplace_back(&Fish::moveX, &gold2);
     threads.emplace_back(&Fish::moveY, &guppy1);
     threads.emplace_back(&Fish::moveY, &guppy2);
 
-    // Головний цикл малювання
     while (true) {
-        setCursorPosition(0, 0); // Повертаємося на початок екрану
+        setCursorPosition(0, 0);
 
-        // 1. Очищаємо поле пробілами
         vector<string> field(HEIGHT, string(WIDTH, ' '));
 
-        // 2. Малюємо рамку
+        // Малюємо рамку
         for (int i = 0; i < HEIGHT; i++) {
             for (int j = 0; j < WIDTH; j++) {
                 if (i == 0 || i == HEIGHT - 1) field[i][j] = '#';
@@ -110,28 +114,29 @@ int main() {
             }
         }
 
-        // 3. Ставимо рибок на поле
-        auto placeFish = [&](Fish& f) {
-            if (f.x > 0 && f.x < WIDTH && f.y > 0 && f.y < HEIGHT) {
-                field[f.y][f.x] = f.symbol;
-            }
-            };
+        {
+            lock_guard<mutex> lock(dataMutex);
 
-        placeFish(gold1);
-        placeFish(gold2);
-        placeFish(guppy1);
-        placeFish(guppy2);
+            auto placeFish = [&](Fish& f) {
+                if (f.x > 0 && f.x < WIDTH && f.y > 0 && f.y < HEIGHT) {
+                    field[f.y][f.x] = f.symbol;
+                }
+                };
 
-        // 4. Вивід готового кадру
+            placeFish(gold1);
+            placeFish(gold2);
+            placeFish(guppy1);
+            placeFish(guppy2);
+        } 
         for (const auto& row : field) {
             cout << row << endl;
         }
 
-        cout << "Ctrl+C to stop." << endl;
+        cout << "Thread Safe Aquarium (Variant 3). Ctrl+C to stop." << endl;
         this_thread::sleep_for(chrono::milliseconds(DELAY_MS));
     }
 
-    // Завершення
+    //  Join потрібен, щоб main чекав завершення потоків
     for (auto& t : threads) {
         if (t.joinable()) t.join();
     }
